@@ -32,7 +32,7 @@ async function carregarCatalogo() {
 }
 
 function lerFormulario() {
-    const campos = formulario.nextElementSibling;
+    const campos = formulario.elements;
     return {
         tutor: campos.tutor.value,
         telefone: campos.telefone.value,
@@ -63,6 +63,6 @@ function aoEnviar(evento) {
     mostrarToast(`Agendamento salvo: ${dados.pet}, ${dados.hora}.`);
 }
 
-formulario.nextElementSibling.data.min = hojeISO();
+formulario.elements.data.min = hojeISO();
 formulario.addEventListener('submit', aoEnviar);
 carregarCatalogo();
