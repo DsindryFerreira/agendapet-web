@@ -1,5 +1,5 @@
-import { carregarServicos } from './api.js';
-import { validarAgendamento, hojeISO } from './dominio/regras.js';
+import { carregarServicos, buscarCep, ErroApi } from './api.js';
+import { validarAgendamento, hojeISO, limparCep } from './dominio/regras.js';
 import {
     mostrarEstado,
     esconderEstado,
@@ -8,6 +8,9 @@ import {
     limparErros,
     mostrarErros,
     mostrarToast,
+    atualizarOpcaoDomiciliar,
+    mostrarGrupoEndereco,
+    preencherEndereco,
 } from './ui.js';
 
 const estado = {
@@ -17,6 +20,18 @@ const estado = {
 
 const avisoServicos = document.getElementById('servicos-status');
 const formulario = document.getElementById('form-agendamento');
+const campoServico = formulario.elements.servico;
+const campoDomiciliar = formulario.elements.domiciliar;
+const campoCep = formulario.elements.cep;
+const statusCep = document.getElementById('cep-status');
+let ultimoCep = '';
+
+const MENSAGENS_CEP = {
+    formato: 'O CEP deve ter 8 dígitos.',
+    'nao-encontrado': 'CEP não encontrado. Preencha o endereço manualmente.',
+    rede: 'Sem conexão com o serviço de CEP. Preencha o endereço manualmente.',
+    http: 'O serviço de CEP está indisponível agora. Preencha o endereço manualmente.'
+};
 
 async function carregarCatalogo() {
     mostrarEstado(avisoServicos, 'carregando', 'Carregando serviços...');
@@ -31,6 +46,44 @@ async function carregarCatalogo() {
     popularSelectServicos(estado.servicos);
 }
 
+function atualizarDomiciliar() {
+    const servico = estado.servicos.find((s) => s.id === campoCep.Servico.value);
+    atualizarOpcaoDomiciliar(servico);
+}
+
+async function consultarCep() {
+    const cep = limparCep(campoCep.value);
+
+    if (cep.length !== 8) {
+        ultimoCep = '';
+        esconderEstado(statusCep);
+        return;
+    }
+    if (cep === ultimoCep) return;
+    ultimoCep = cep;
+
+    mostrarEstado(statusCep, 'carregando', 'Buscando endereço...');
+    try {
+        const endereco = await buscarCep(cep);
+        if (limparCep(campoCep.value) !== cep) return;
+        preencherEndereco(endereco);
+        mostrarEstado(statusCep, 'sucesso', 'Endereço preenchido. Confira e informe o número.');
+        formulario.elements.numero.focus();
+    } catch (erro) {
+        if (limparCep(campoCep.value) !== cep) return;
+        ultimoCep = '';
+        const tipo = erro instanceof ErroApi ? erro.tipo : 'http';
+        mostrarEstado(statusCep, 'erro', MENSAGENS_CEP[tipo]);
+    }
+}
+
+function aoSairDoCep() {
+    const digitos = limparCep(campoCep.value);
+    if (digitos.length > 0 && digitos.length < 8) {
+        mostrarEstado(statusCep, 'erro', MENSAGENS_CEP.formato);
+    }
+}
+
 function lerFormulario() {
     const campos = formulario.elements;
     return {
@@ -42,6 +95,14 @@ function lerFormulario() {
         data: campos.data.value,
         hora: campos.hora.value,
         observacoes: campos.observacoes.value,
+        domiciliar: campos.domiciliar.checked,
+        cep: campos.cep.value,
+        logradouro: campos.logradouro.value,
+        numero: campos.numero.value,
+        complemento: campos.complemento.value,
+        bairro: campos.bairro.value,
+        cidade: campos.cidade.value,
+        uf: campos.uf.value,
     };
 }
 
@@ -60,9 +121,17 @@ function aoEnviar(evento) {
 
     estado.agenda.push({ ...dados, status: 'Agendado' });
     formulario.reset();
+    atualizarDomiciliar();
+    esconderEstado(statusCep);
+    ultimoCep = '';
     mostrarToast(`Agendamento salvo: ${dados.pet}, ${dados.hora}.`);
 }
 
 formulario.elements.data.min = hojeISO();
 formulario.addEventListener('submit', aoEnviar);
+campoServico.addEventListener('change', atualizarDomiciliar);
+campoDomiciliar.addEventListener('change', () => mostrarGrupoEndereco(campoDomiciliar.checked));
+campoCep.addEventListener('input', consultarCep);
+campoCep.addEventListener('blur', aoSairDoCep);
+atualizarDomiciliar();
 carregarCatalogo();
