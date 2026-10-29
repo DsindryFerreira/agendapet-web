@@ -68,3 +68,45 @@ export function popularSelectServicos(servicos) {
         select.append(opcao);
     }
 }
+
+export function limparErros(formulario) {
+    for (const mensagem of formulario.querySelectorAll('.campo__erro')) {
+        mensagem.hidden = true;
+        mensagem.textContent = '';
+    }
+    for (const campo of formulario.querySelectorAll('[aria-invalid]')) {
+        campo.removeAttribute('aria-invalid');
+    }
+}
+
+export function mostrarErros(erros) {
+    let primeiroInvalido = null;
+
+    for (const [nome, texto] of Object.entries(erros)) {
+        const campo = document.getElementById(nome);
+        const mensagem = document.getElementById(`erro-${nome}`);
+        if (!campo || !mensagem) continue;
+
+        campo.setAttribute('aria-invalid', 'true');
+        mensagem.setAttribute('role', 'alert');
+        mensagem.textContent = texto;
+        mensagem.hidden = false;
+
+        if (!primeiroInvalido) primeiroInvalido = campo;
+    }
+
+    if (primeiroInvalido) primeiroInvalido.focus();
+}    
+
+let timerToast = null;
+
+export function mostrarToast(texto, tipo = 'sucesso', duracaoMs = 4000) {
+    const toast = document.getElementById('toast');
+    clearTimeout(timerToast);
+    toast.className = `toast toast--${tipo}`;
+    toast.textContent = texto;
+    toast.hidden = false;
+    timerToast = setTimeout(() => {
+        toast.hidden = true;
+    }, duracaoMs);
+}
