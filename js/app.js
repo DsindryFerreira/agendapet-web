@@ -1,5 +1,5 @@
-import { carregarServicos, buscarCep, ErroApi } from './api.js';
-import { validarAgendamento, hojeISO, limparCep } from './dominio/regras.js';
+import { carregarServicos, buscarCep, ErroApi, buscarFeriados } from './api.js';
+import { validarAgendamento, hojeISO, limparCep, formatarData } from './dominio/regras.js';
 import {
     mostrarEstado,
     esconderEstado,
@@ -11,11 +11,14 @@ import {
     atualizarOpcaoDomiciliar,
     mostrarGrupoEndereco,
     preencherEndereco,
+    mostrarAvisoFeriado,
+    esconderAvisoFeriado,
 } from './ui.js';
 
 const estado = {
     servicos: [],
     agenda: [],
+    feriado: null,
 };
 
 const avisoServicos = document.getElementById('servicos-status');
@@ -84,6 +87,35 @@ function aoSairDoCep() {
     }
 }
 
+async function verificarFeriado() {
+    const campoData = formulario.elements.data;
+    const data = campoCep.Data.value;
+
+    estado.feriado = null;
+    esconderAvisoFeriado();
+    if (data === '') return;
+
+    try {
+        const feriados = await buscarFeriados(data.slice(0,4));
+        if (campoData.value !== data) return;
+
+        const feriado = feriados.find((f) => f.date === data);
+        if (feriado) {
+            estado.feriado = feriado;
+            mostrarAvisoFeriado(
+                `${formatarData(data)} é feriado: ${feriado.name}. Confirme com o tutor antes de agendar.`,
+                true
+            );
+        }
+    } catch {
+        if (campoData.value !== data) return;
+        mostrarAvisoFeriado(
+            'Não foi possível verificar se a data é feriado agora. Você pode continuar o agendamento.',
+            false
+        );
+    }
+}
+
 function lerFormulario() {
     const campos = formulario.elements;
     return {
@@ -103,6 +135,8 @@ function lerFormulario() {
         bairro: campos.bairro.value,
         cidade: campos.cidade.value,
         uf: campos.uf.value,
+        feriadoNome: estado.feriado ? estado.feriado.name : '',
+        feriadoConfirmado: campos['feriado-confirmar'].checked,
     };
 }
 
@@ -121,6 +155,8 @@ function aoEnviar(evento) {
 
     estado.agenda.push({ ...dados, status: 'Agendado' });
     formulario.reset();
+    esconderAvisoFeriado();
+    estado.feriado = null;
     atualizarDomiciliar();
     esconderEstado(statusCep);
     ultimoCep = '';
@@ -134,4 +170,5 @@ campoDomiciliar.addEventListener('change', () => mostrarGrupoEndereco(campoDomic
 campoCep.addEventListener('input', consultarCep);
 campoCep.addEventListener('blur', aoSairDoCep);
 atualizarDomiciliar();
+formulario.elements.data.addEventListener('change', verificarFeriado);
 carregarCatalogo();

@@ -138,3 +138,14 @@ export function preencherEndereco(endereco) {
     document.getElementById('cidade').value = endereco.cidade;
     document.getElementById('uf').value = endereco.uf;
 }
+
+export function mostrarAvisoFeriado(texto, pedirConfirmacao) {
+    document.getElementById('feriado-texto').textContent = texto;
+    document.querySelector('#feriado-aviso .campo--check').hidden = !pedirConfirmacao;
+    document.getElementById('feriado-aviso').hidden = false;
+}
+
+export function esconderAvisoFeriado() {
+    document.getElementById('feriado-aviso').hidden = true;
+    document.getElementById('feriado-confirmar').checked = false;
+}
