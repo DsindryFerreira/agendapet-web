@@ -28,7 +28,7 @@ export function limparCep(cep) {
 }
 
 export function cepValido(cep) {
-    return limparCep(cep).lenght === 8;
+    return limparCep(cep).length === 8;
 }
 
 export function horarioDentroDoFuncionamento(hora, duracaoMin) {

@@ -47,34 +47,34 @@ async function carregarCatalogo() {
 }
 
 function atualizarDomiciliar() {
-    const servico = estado.servicos.find((s) => s.id === campoCep.Servico.value);
+    const servico = estado.servicos.find((s) => s.id === campoServico.value);
     atualizarOpcaoDomiciliar(servico);
 }
 
 async function consultarCep() {
-    const cep = limparCep(campoCep.value);
+  const cep = limparCep(campoCep.value);
 
-    if (cep.length !== 8) {
-        ultimoCep = '';
-        esconderEstado(statusCep);
-        return;
-    }
-    if (cep === ultimoCep) return;
-    ultimoCep = cep;
+  if (cep.length !== 8) {
+    ultimoCep = '';
+    esconderEstado(statusCep);
+    return;
+  }
+  if (cep === ultimoCep) return;
+  ultimoCep = cep;
 
-    mostrarEstado(statusCep, 'carregando', 'Buscando endereço...');
-    try {
-        const endereco = await buscarCep(cep);
-        if (limparCep(campoCep.value) !== cep) return;
-        preencherEndereco(endereco);
-        mostrarEstado(statusCep, 'sucesso', 'Endereço preenchido. Confira e informe o número.');
-        formulario.elements.numero.focus();
-    } catch (erro) {
-        if (limparCep(campoCep.value) !== cep) return;
-        ultimoCep = '';
-        const tipo = erro instanceof ErroApi ? erro.tipo : 'http';
-        mostrarEstado(statusCep, 'erro', MENSAGENS_CEP[tipo]);
-    }
+  mostrarEstado(statusCep, 'carregando', 'Buscando endereço…');
+  try {
+    const endereco = await buscarCep(cep);
+    if (limparCep(campoCep.value) !== cep) return;
+    preencherEndereco(endereco);
+    mostrarEstado(statusCep, 'sucesso', 'Endereço preenchido. Confira e informe o número.');
+    formulario.elements.numero.focus();
+  } catch (erro) {
+    if (limparCep(campoCep.value) !== cep) return;
+    ultimoCep = '';
+    const tipo = erro instanceof ErroApi ? erro.tipo : 'http';
+    mostrarEstado(statusCep, 'erro', MENSAGENS_CEP[tipo]);
+  }
 }
 
 function aoSairDoCep() {

@@ -112,7 +112,7 @@ export function mostrarToast(texto, tipo = 'sucesso', duracaoMs = 4000) {
 }
 
 export function mostrarGrupoEndereco(visivel) {
-    document.getElementById('grupo-endereço').hidden = !visivel;
+    document.getElementById('grupo-endereco').hidden = !visivel;
 }
 
 export function atualizarOpcaoDomiciliar(servico) {
@@ -127,7 +127,7 @@ export function atualizarOpcaoDomiciliar(servico) {
         caixa.disable = true;
         dica.textContent = servico
             ? `"${servico.nome}" é realizado somente na loja.`
-            : 'Escolha um serviço para ver se ele pode ser feito na casa do tutor.'
+            : 'Escolha um serviço para ver se ele pode ser feito na casa do tutor.';
     }
     mostrarGrupoEndereco(caixa.checked);
 }
