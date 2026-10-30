@@ -23,6 +23,18 @@ export function telefoneValido(telefone) {
     return digitos.length === 10 || digitos.length === 11;
 }
 
+export function limparCep(cep) {
+    return cep.replace(/\D/g, '');
+}
+
+export function cepValido(cep) {
+    return limparCep(cep).length === 8;
+}
+
+export function formatarData(iso) {
+    return iso.split('-').reverse().join('/');
+}
+
 export function horarioDentroDoFuncionamento(hora, duracaoMin) {
     const inicio = paraMinutos(hora);
     const abertura = paraMinutos(CONFIG.abertura);
@@ -64,6 +76,28 @@ export function validarAgendamento(dados, servicoEscolhido) {
             erros.hora = 'Fora do funcionamento: atendemos das 08:00 às 18:00, em horários de 30 em 30 minutos, e o serviço precisa terminar até o fechamento.';
         } else if (dados.data === hojeISO() && paraMinutos(dados.hora) <= minutosAgora()) {
             erros.hora = 'Esse horário de hoje já passou.'
+        }
+    }
+
+    if (dados.feriadoNome && !dados.feriadoConfirmado) {
+        erros['feriado-confirmar'] = 'Marque "Agendar mesmo assim" para agendar em um feriado.';
+    }
+
+    if (dados.domiciliar) {
+        if (!cepValido(dados.cep)) {
+            erros.cep = 'O CEP deve ter 8 dígitos.';
+        }
+        if (dados.logradouro.trim() === '') {
+            erros.logradouro = 'Informe a rua.';
+        }
+        if (dados.numero.trim() === '') {
+            erros.numero = 'Informe o número.';
+        }
+        if (dados.bairro.trim() === '') {
+            erros.bairro = 'Informe o bairro';
+        }
+        if (dados.uf.trim().lenght !== 2) {
+            erros.uf = 'Informe a UF com e letras.';
         }
     }
 

@@ -110,3 +110,42 @@ export function mostrarToast(texto, tipo = 'sucesso', duracaoMs = 4000) {
         toast.hidden = true;
     }, duracaoMs);
 }
+
+export function mostrarGrupoEndereco(visivel) {
+    document.getElementById('grupo-endereco').hidden = !visivel;
+}
+
+export function atualizarOpcaoDomiciliar(servico) {
+    const caixa = document.getElementById('domiciliar');
+    const dica = document.getElementById('dica-domiciliar');
+
+    if (servico && servico.domiciliar) {
+        caixa.disable = false;
+        dica.textContent = 'Marque para atender na casa do tutor.';
+    } else {
+        caixa.checked = false;
+        caixa.disable = true;
+        dica.textContent = servico
+            ? `"${servico.nome}" é realizado somente na loja.`
+            : 'Escolha um serviço para ver se ele pode ser feito na casa do tutor.';
+    }
+    mostrarGrupoEndereco(caixa.checked);
+}
+
+export function preencherEndereco(endereco) {
+    document.getElementById('logradouro').value = endereco.logradouro;
+    document.getElementById('bairro').value = endereco.bairro;
+    document.getElementById('cidade').value = endereco.cidade;
+    document.getElementById('uf').value = endereco.uf;
+}
+
+export function mostrarAvisoFeriado(texto, pedirConfirmacao) {
+    document.getElementById('feriado-texto').textContent = texto;
+    document.querySelector('#feriado-aviso .campo--check').hidden = !pedirConfirmacao;
+    document.getElementById('feriado-aviso').hidden = false;
+}
+
+export function esconderAvisoFeriado() {
+    document.getElementById('feriado-aviso').hidden = true;
+    document.getElementById('feriado-confirmar').checked = false;
+}
