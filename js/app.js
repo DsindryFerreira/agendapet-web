@@ -89,7 +89,7 @@ function aoSairDoCep() {
 
 async function verificarFeriado() {
     const campoData = formulario.elements.data;
-    const data = campoCep.Data.value;
+    const data = campoData.value;
 
     estado.feriado = null;
     esconderAvisoFeriado();
