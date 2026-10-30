@@ -103,3 +103,7 @@ export function validarAgendamento(dados, servicoEscolhido) {
 
     return erros;
 }
+
+export function temConflito(lista, novo) {
+    return lista.some((existente) => novo.conflitaCom(existente));
+}
