@@ -31,6 +31,10 @@ export function cepValido(cep) {
     return limparCep(cep).length === 8;
 }
 
+export function formatarData(iso) {
+    return iso.split('-').reverse().join('/');
+}
+
 export function horarioDentroDoFuncionamento(hora, duracaoMin) {
     const inicio = paraMinutos(hora);
     const abertura = paraMinutos(CONFIG.abertura);
@@ -73,6 +77,10 @@ export function validarAgendamento(dados, servicoEscolhido) {
         } else if (dados.data === hojeISO() && paraMinutos(dados.hora) <= minutosAgora()) {
             erros.hora = 'Esse horário de hoje já passou.'
         }
+    }
+
+    if (dados.feriadoNome && !dados.feriadoConfirmado) {
+        erros['feriado-confirmar'] = 'Marque "Agendar mesmo assim" para agendar em um feriado.';
     }
 
     if (dados.domiciliar) {

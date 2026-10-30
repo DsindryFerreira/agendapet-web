@@ -1,4 +1,5 @@
 import { limparCep, cepValido } from './dominio/regras.js';
+import { lerJSON, salvarJSON } from './storage.js';
 
 export class ErroApi extends Error {
   constructor(tipo, mensagem) {
@@ -45,4 +46,23 @@ export async function buscarCep(cep) {
         cidade: dados.localidade ?? '',
         uf: dados.uf ?? '',
     };
+}
+
+const VALIDADE_FERIADOS_MS = 30 * 24 * 60 * 60 * 1000;
+
+export async function buscarFeriados(ano) {
+    const chave = `feriados:${ano}`;
+    const emCache = lerJSON(chave, null);
+
+    if (emCache && Date.now() - emCache.salvoEm < VALIDADE_FERIADOS_MS) {
+        return emCache.feriados;
+    }
+
+    const feriados = await buscarJSON(
+        `https://brasilapi.com.br/api/feriados/v1/${ano}`,
+        'Não foi possível consultar os feriados'
+    );
+
+    salvarJSON(chave, { salvoEm: Date.now(), feriados});
+    return feriados;
 }
