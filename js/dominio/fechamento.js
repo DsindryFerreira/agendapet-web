@@ -33,7 +33,7 @@ export function calcularFechamento(lista, data) {
     const doDia = lista.filter((a) => a.data === data);
     const concluidos = doDia.filter((a) => a.status === STATUS.concluido);
     const agendados = doDia.filter((a) => a.status === STATUS.agendado);
-    const cancelados = doDia.filter((a) => a.status === STATUS.cancelados);
+    const cancelados = doDia.filter((a) => a.status === STATUS.cancelado);
 
     const somar = (total, agendamento) => total + agendamento.calcularValor();
 
