@@ -1,5 +1,5 @@
 import { carregarServicos, buscarCep, ErroApi, buscarFeriados } from './api.js';
-import { validarAgendamento, hojeISO, limparCep, formatarData } from './dominio/regras.js';
+import { validarAgendamento, hojeISO, limparCep, formatarData, temConflito } from './dominio/regras.js';
 import {
     mostrarEstado,
     esconderEstado,
@@ -13,12 +13,34 @@ import {
     preencherEndereco,
     mostrarAvisoFeriado,
     esconderAvisoFeriado,
+    renderizarAgenda,
+    renderizarFechamento,
+    focarItem,
 } from './ui.js';
+import {
+    Servico,
+    STATUS,
+    criarAgendamento,
+    criarGeradorProtocolo,
+} from './dominio/agendamento.js';
+import {
+    filtrarAgendamentos,
+    porDia,
+    porStatus,
+    porBusca,
+    ordenarPorHorario,
+    calcularFechamento,
+} from './dominio/fechamento.js';
 
 const estado = {
     servicos: [],
     agenda: [],
     feriado: null,
+    dataAgenda: hojeISO(),
+    filtroStatus: 'todos',
+    busca: '',
+    expandidos: new Set(),
+    gerarProtocolo: criarGeradorProtocolo(0),
 };
 
 const avisoServicos = document.getElementById('servicos-status');
@@ -28,6 +50,12 @@ const campoDomiciliar = formulario.elements.domiciliar;
 const campoCep = formulario.elements.cep;
 const statusCep = document.getElementById('cep-status');
 let ultimoCep = '';
+
+const campoDataAgenda
+ = document.getElementById('data-agenda');
+const campoBusca = document.getElementById('busca');
+const campoFiltro = document.getElementById('filtro-status');
+const listaAgenda = document.getElementById('lista-agenda');
 
 const MENSAGENS_CEP = {
     formato: 'O CEP deve ter 8 dígitos.',
@@ -39,7 +67,8 @@ const MENSAGENS_CEP = {
 async function carregarCatalogo() {
     mostrarEstado(avisoServicos, 'carregando', 'Carregando serviços...');
     try {
-        estado.servicos = await carregarServicos();
+       const dados = await carregarServicos();
+       estado.servicos = dados.map((dado) => new Servico(dado));
     } catch (erro) {
         mostrarEstado(avisoServicos, 'erro', erro.message, carregarCatalogo);
         return;
@@ -140,6 +169,67 @@ function lerFormulario() {
     };
 }
 
+function montarObjetoAgendamento(dados) {
+    return {
+        protocolo: '',
+        tutor: dados.tutor.trim(),
+        telefone: dados.telefone.trim(),
+        pet: dados.pet.trim(),
+        especie: dados.especie,
+        servicoId: dados.servico,
+        data: dados.data,
+        hora: dados.hora,
+        status: STATUS.agendado,
+        observacoes: dados.observacoes.trim(),
+        domiciliar: dados.domiciliar,
+        endereco: dados.domiciliar
+            ? {
+                cep: dados.cep,
+                logradouro: dados.logradouro.trim(),
+                numero: dados.numero.trim(),
+                complemento: dados.complemento.trim(),
+                bairro: dados.bairro.trim(),
+                cidade: dados.cidade.trim(),
+                uf: dados.uf.trim().toUpperCase(),
+              }
+            : null,
+    };
+}
+
+function atualizarTela() {
+    const doDia = filtrarAgendamentos(estado.agenda, porDia(estado.dataAgenda));
+    const visiveis = ordenarPorHorario(
+        filtrarAgendamentos(doDia, porStatus(estado.filtroStatus), porBusca(estado.busca))
+    );
+    renderizarAgenda(visiveis, estado.expandidos, doDia.length);
+    renderizarFechamento(calcularFechamento(estado.agenda, estado.dataAgenda));
+}
+
+function mudarStatus(protocolo, novoStatus) {
+    const agendamento = estado.agenda.find((a) => a.protocolo === protocolo);
+    if (!agendamento || !agendamento.alterarStatus(novoStatus)) return;
+
+    atualizarTela();
+    focarItem(protocolo);
+
+    if (novoStatus === STATUS.concluido) {
+        mostrarToast(`${protocolo} (${agendamento.pet}) concluído.`);
+    } else {
+        mostrarToast(`${protocolo} (${agendamento.pet}) cancelado. O horário foi liberado.`, 'info');
+    }
+}
+
+function alternarDetalhes(protocolo) {
+    if (estado.expandidos.has(protocolo)) {
+        estado.expandidos.delete(protocolo);
+    } else {
+        estado.expandidos.add(protocolo);
+    }
+
+    atualizarTela();
+    focarItem(protocolo);
+}
+
 function aoEnviar(evento) {
     evento.preventDefault();
     limparErros(formulario);
@@ -153,14 +243,36 @@ function aoEnviar(evento) {
         return;
     }
 
-    estado.agenda.push({ ...dados, status: 'Agendado' });
-    formulario.reset();
-    esconderAvisoFeriado();
-    estado.feriado = null;
+    const novo = criarAgendamento(montarObjetoAgendamento(dados), estado.servicos);
+
+    if (temConflito(estado.agenda, novo)) {
+        mostrarErros({
+            hora: `Já existe um atendimento às ${novo.hora} em ${formatarData(novo.data)}. Escolha outro horário.`,
+        });
+        return;
+    }
+
+    novo.protocolo = estado.gerarProtocolo();
+    estado.agenda.push(novo);
+
+    formulario.requestFullscreen();
     atualizarDomiciliar();
     esconderEstado(statusCep);
     ultimoCep = '';
-    mostrarToast(`Agendamento salvo: ${dados.pet}, ${dados.hora}.`);
+    esconderAvisoFeriado();
+    estado.feriado = null;
+
+    estado.dataAgenda = novo.data;
+    campoDataAgenda.value = novo.data;
+    estado.busca = '';
+    campoBusca.value = '';
+    estado.filtroStatus = 'todos';
+    campoFiltro.value - 'todos';
+
+    atualizarTela();
+    mostrarToast(
+        `Agendamento ${novo.protocolo} salvo: ${novo.pet}, ${formatarData(novo.data)} às ${novo.hora}.`
+    );
 }
 
 formulario.elements.data.min = hojeISO();
@@ -171,4 +283,74 @@ campoCep.addEventListener('input', consultarCep);
 campoCep.addEventListener('blur', aoSairDoCep);
 atualizarDomiciliar();
 formulario.elements.data.addEventListener('change', verificarFeriado);
+
+campoDataAgenda.value = estado.dataAgenda;
+
+campoDataAgenda.addEventListener('change', () => {
+    if (campoDataAgenda === '') return;
+    estado.dataAgenda = campoDataAgenda.value;
+    atualizarTela();
+});
+
+campoBusca.addEventListener('input', () => {
+    estado.busca = campoBusca.value;
+    atualizarTela();
+});
+
+campoFiltro.addEventListener('change', () => {
+    estado.filtroStatus = campoFiltro.value;
+    atualizarTela();
+});
+
+listaAgenda.addEventListener('click', (evento) => {
+    const botao = evento.target.closest('[data-acao]');
+    if (!botao) return;
+    const protocolo = botao.closest('.item').dataset.protocolo;
+
+    switch (botao.dataset.acao) {
+        case 'concluir':
+            mudarStatus(protocolo, STATUS.concluido);
+            break;
+        case 'cancelar':
+            mudarStatus(protocolo, STATUS.cancelado);
+            break;
+        case 'alternar':
+            alternarDetalhes(protocolo);
+            break;
+    }
+});
+
+listaAgenda.addEventListener('mouseover', (evento) => {
+    const item = evento.target.closest('.item');
+    if (item) item.classList.add('item--realce');
+});
+
+listaAgenda.addEventListener('mouseout', (evento) => {
+    const item = evento.target.closest('.item');
+    if (item && !item.contains(evento.relatedTarget)) item.classList.remove('item--realce');
+});
+
+document.addEventListener('keydown', (evento) => {
+    if (evento.ctrlKey || evento.metaKey || evento.altKey) return;
+
+    if (evento.key === 'Escape' && evento.target === campoBusca) {
+        campoBusca.value = '';
+        estado.busca = '';
+        atualizarTela();
+        return;
+    }
+    if (evento.target.matches('input, textarea, select')) return;
+
+    if (evento.key === '/') {
+        evento.preventDefault();
+        campoBusca.focus();
+    }
+    if (evento.key?.toLowerCase() === 'n') {
+        evento.preventDefault();
+        formulario.elements.tutor.focus();
+    }
+});
+
+atualizarTela();
+
 carregarCatalogo();
