@@ -255,7 +255,7 @@ function aoEnviar(evento) {
     novo.protocolo = estado.gerarProtocolo();
     estado.agenda.push(novo);
 
-    formulario.requestFullscreen();
+    formulario.reset();
     atualizarDomiciliar();
     esconderEstado(statusCep);
     ultimoCep = '';

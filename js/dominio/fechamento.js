@@ -55,7 +55,7 @@ export function calcularFechamento(lista, data) {
         concluidos: concluidos.length,
         agendados: agendados.length,
         cancelados: cancelados.length,
-        faturamentos: concluidos.reduce(somar, 0),
+        faturamento: concluidos.reduce(somar, 0),
         aReceber: agendados.reduce(somar, 0),
         porServico: Object.values(porServico).sort((a, b) => b.quantidade - a.quantidade),
         encerrado: doDia.length > 0 && doDia.every((a) => a.status !== STATUS.agendado),
