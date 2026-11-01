@@ -96,10 +96,14 @@ export function validarAgendamento(dados, servicoEscolhido) {
         if (dados.bairro.trim() === '') {
             erros.bairro = 'Informe o bairro';
         }
-        if (dados.uf.trim().lenght !== 2) {
-            erros.uf = 'Informe a UF com e letras.';
+        if (dados.uf.trim().length !== 2) {
+            erros.uf = 'Informe a UF com letras.';
         }
     }
 
     return erros;
+}
+
+export function temConflito(lista, novo) {
+    return lista.some((existente) => novo.conflitaCom(existente));
 }
