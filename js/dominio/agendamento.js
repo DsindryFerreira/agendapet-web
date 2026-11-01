@@ -135,7 +135,21 @@ export class AgendamentoDomiciliar extends Agendamento {
     }
 }
 
+const CAMPOS_TEXTO = [
+    'protocolo', 'tutor', 'telefone', 'pet', 'especie', 'servicoId', 'data', 'hora',
+];
+
 export function criarAgendamento(dados, catalogo) {
+    if (!CAMPOS_TEXTO.every((campo) => typeof dados[campo] === 'string')) {
+        throw new Error('Agendamento com campos ausentes.');
+    }
+    if (!Object.values(STATUS).includes(dados.status)) {
+        throw new Error(`Status inválido: ${dados.status}`);
+    }
+    if (dados.domiciliar && !dados.endereco) {
+        throw new Error('Atendimento domiciliar sem endereço.');
+    }
+
     const servico = catalogo.find((s) => s.id === dados.servicoId);
     if (!servico) {
         throw new Error(`Serviço inexistente: ${dados.servicoId}`);
@@ -165,4 +179,11 @@ export function criarGeradorProtocolo(ultimo = 0) {
         contador += 1;
         return `AP-${String(contador).padStart(4, '0')}`;
     };
+}
+
+export function maiorProtocolo(lista) {
+    return lista.reduce((maior, agendamento) => {
+        const numero = Number(agendamento.protocolo.replace(/\D/g, ''));
+        return Math.max(maior, numero);
+    }, 0);
 }
