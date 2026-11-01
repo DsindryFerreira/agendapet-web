@@ -17,3 +17,15 @@ export function salvarJSON(chave, valor) {
         return false;
     }
 }
+
+export function limparDados() {
+    try {
+        const chaves = Object.keys(localStorage).filter((chave) => chave.startsWith(PREFIXO));
+        for (const chave of chaves) {
+            localStorage.removeItem(chave);
+        }
+        return chaves.length;
+    } catch {
+        return 0;
+    }
+}
