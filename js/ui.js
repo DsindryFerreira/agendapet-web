@@ -1,5 +1,5 @@
 import { STATUS } from './dominio/agendamento.js';
-import { formatarData } from './dominio/regras.js';
+import { formatarData, formatarMoeda } from './dominio/regras.js';
 
 export function mostrarEstado(elemento, tipo, texto, aoTentarNovamente) {
     elemento.hidden = false;
@@ -20,9 +20,6 @@ export function esconderEstado(elemento) {
     elemento.hidden = true;
     elemento.textContent = '';
 }
-
-const formatarMoeda = (valor) =>
-    valor.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 
 export function renderizarServicos(servicos) {
     const lista = document.getElementById('lista-servicos');
