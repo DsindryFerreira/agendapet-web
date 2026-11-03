@@ -126,3 +126,7 @@ export function textoFalta(minutos) {
     const resto = minutos % 60;
     return resto === 0 ? `em ${horas} h` : `em ${horas} h ${resto} min`;
 }
+
+export function formatarMoeda(valor) {
+    return valor.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL'});
+}
