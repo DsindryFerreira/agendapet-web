@@ -130,3 +130,14 @@ export function textoFalta(minutos) {
 export function formatarMoeda(valor) {
     return valor.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL'});
 }
+
+export function dataValida(texto) {
+    if (typeof texto !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(texto)) return false;
+    const [ano, mes, dia] = texto.split('-').map(Number);
+    const data = new Date(ano, mes - 1, dia);
+    return data.getFullYear() === ano && data.getMonth() === mes - 1 && data.getDate() === dia;
+}
+
+export function horaValida(texto) {
+    return typeof texto === 'string' && /^([01]\d|2[0-3]):[0-5]\d$/.test(texto);
+}
