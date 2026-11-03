@@ -66,3 +66,6 @@ export async function buscarFeriados(ano) {
     salvarJSON(chave, { salvoEm: Date.now(), feriados});
     return feriados;
 }
+
+export const carregarAgendaExemplo = () =>
+    buscarJSON('data/agenda-exemplo.json', 'Não foi possível carregar os dados de exemplo');

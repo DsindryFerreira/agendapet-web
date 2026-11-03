@@ -1,5 +1,7 @@
-import { carregarServicos, buscarCep, ErroApi, buscarFeriados } from './api.js';
-import { validarAgendamento, hojeISO, limparCep, formatarData, temConflito } from './dominio/regras.js';
+import { carregarServicos, buscarCep, ErroApi, buscarFeriados, carregarAgendaExemplo } from './api.js';
+
+import { validarAgendamento, hojeISO, limparCep, formatarData, temConflito, horaAgora, minutosAte, textoFalta } from './dominio/regras.js';
+
 import {
     mostrarEstado,
     esconderEstado,
@@ -16,13 +18,20 @@ import {
     renderizarAgenda,
     renderizarFechamento,
     focarItem,
+    mostrarRelogio,
+    mostrarProximo,
+    mostrarLembrete,
+    esconderLembrete,
 } from './ui.js';
+
 import {
     Servico,
     STATUS,
     criarAgendamento,
     criarGeradorProtocolo,
+    maiorProtocolo,
 } from './dominio/agendamento.js';
+
 import {
     filtrarAgendamentos,
     porDia,
@@ -30,7 +39,11 @@ import {
     porBusca,
     ordenarPorHorario,
     calcularFechamento,
+    protocolosAtrasados,
+    proximoAtendimento,
 } from './dominio/fechamento.js';
+
+import { lerJSON, salvarJSON, limparDados } from './storage.js';
 
 const estado = {
     servicos: [],
@@ -41,6 +54,9 @@ const estado = {
     busca: '',
     expandidos: new Set(),
     gerarProtocolo: criarGeradorProtocolo(0),
+    timerLembretes: null,
+    lembretesAtivos: true,
+    assinaturaAtrasados: '',
 };
 
 const avisoServicos = document.getElementById('servicos-status');
@@ -64,6 +80,19 @@ const MENSAGENS_CEP = {
     http: 'O serviço de CEP está indisponível agora. Preencha o endereço manualmente.'
 };
 
+const botaoTema = document.getElementById('btn-tema');
+const botaoLimpar = document.getElementById('btn-limpar');
+const textoExportacao = document.getElementById('exportacao-texto');
+const FILTROS_VALIDOS = ['todos', STATUS.agendado, STATUS.concluido, STATUS.cancelado];
+const TEXTO_LIMPAR = 'Limpar meus dados';
+let confirmandoLimpeza = false;
+let timerConfirmacao = null;
+
+const botaoLembretes = document.getElementById('btn-lembretes');
+const INTERVALO_MS = 30_000;
+const LIMITE_LEMBRETE_MIN = 15;
+const assinatura = (conjunto) => [...conjunto].sort().join(',');
+
 async function carregarCatalogo() {
     mostrarEstado(avisoServicos, 'carregando', 'Carregando serviços...');
     try {
@@ -76,6 +105,7 @@ async function carregarCatalogo() {
     esconderEstado(avisoServicos);
     renderizarServicos (estado.servicos);
     popularSelectServicos(estado.servicos);
+    restaurarAgenda();
 }
 
 function atualizarDomiciliar() {
@@ -197,17 +227,78 @@ function montarObjetoAgendamento(dados) {
 }
 
 function atualizarTela() {
+    const hoje = hojeISO();
+    const agora = horaAgora();
+    const atrasados = protocolosAtrasados(estado.agenda, hoje, agora);
+    estado.assinaturaAtrasados = assinatura(atrasados);
+
     const doDia = filtrarAgendamentos(estado.agenda, porDia(estado.dataAgenda));
     const visiveis = ordenarPorHorario(
         filtrarAgendamentos(doDia, porStatus(estado.filtroStatus), porBusca(estado.busca))
     );
-    renderizarAgenda(visiveis, estado.expandidos, doDia.length);
+    renderizarAgenda(visiveis, estado.expandidos, doDia.length, atrasados);
     renderizarFechamento(calcularFechamento(estado.agenda, estado.dataAgenda));
+
+    if (estado.lembretesAtivos) atualizarProximo(hoje, agora);
+}
+
+function atualizarProximo(hoje, agora) {
+    const proximo = proximoAtendimento(estado.agenda, hoje, agora);
+
+    if (!proximo) {
+        mostrarProximo('Proximo atendimento de hoje: nenhum pendente');
+        esconderLembrete();
+        return;
+    }
+
+    const falta = minutosAte(proximo.hora, agora);
+    const descricao = `${proximo.pet} (${proximo.servico.nome}) às ${proximo.hora}, ${textoFalta(falta)}`;
+    mostrarProximo(`Proximo atendimento de hoje: ${descricao}`);
+
+    if (falta <= LIMITE_LEMBRETE_MIN) {
+        mostrarLembrete(`Lembrete: ${descricao}.`);
+    } else {
+        esconderLembrete();
+    }
+}
+
+function atualizarRelogio() {
+    const hoje = hojeISO();
+    const agora = horaAgora();
+    mostrarRelogio(agora);
+    atualizarProximo(hoje, agora);
+
+    const atrasados = protocolosAtrasados(estado.agenda, hoje, agora);
+    if (assinatura(atrasados) !== estado.assinaturaAtrasados) atualizarTela();
+}
+
+function iniciarLembretes() {
+    clearInterval(estado.timerLembretes);
+    estado.timerLembretes = setInterval(atualizarRelogio, INTERVALO_MS);
+    atualizarRelogio();
+}
+
+function alternarLembretes() {
+    estado.lembretesAtivos = !estado.lembretesAtivos;
+
+    if (estado.lembretesAtivos) {
+        iniciarLembretes();
+        mostrarToast('Lembretes retomados.', 'info');
+    } else {
+        clearInterval(estado.timerLembretes);
+        estado.timerLembretes = null;
+        esconderLembrete();
+        mostrarToast('Lembretes pausados.', 'info');
+    }
+
+    botaoLembretes.setAttribute('aria-pressed', String(estado.lembretesAtivos));
+    botaoLembretes.textContent = estado.lembretesAtivos ? 'Pausar lembretes' : 'Retomar lembretes';
 }
 
 function mudarStatus(protocolo, novoStatus) {
     const agendamento = estado.agenda.find((a) => a.protocolo === protocolo);
     if (!agendamento || !agendamento.alterarStatus(novoStatus)) return;
+    salvarAgenda();
 
     atualizarTela();
     focarItem(protocolo);
@@ -229,6 +320,131 @@ function alternarDetalhes(protocolo) {
     atualizarTela();
     focarItem(protocolo);
 }
+
+function salvarAgenda() {
+    salvarJSON('agenda', estado.agenda.map((a) => a.paraJSON()));
+}
+
+function converterAgenda(lista) {
+    if (!Array.isArray(lista)) return [];
+    const agenda = [];
+    for (const dados of lista) {
+        try {
+            agenda.push(criarAgendamento(dados, estado.servicos));
+        } catch {
+        }
+    }
+    return agenda;
+}
+
+function restaurarAgenda() {
+    estado.agenda = converterAgenda(lerJSON('agenda', []));
+    estado.gerarProtocolo = criarGeradorProtocolo(maiorProtocolo(estado.agenda));
+    atualizarTela();
+}
+
+function aplicarTema(tema) {
+    const escuro = tema === 'escuro';
+    document.documentElement.dataset.tema = tema;
+    botaoTema.setAttribute('aria-pressed', String(escuro));
+    botaoTema.textContent = escuro ? 'Tema claro' : 'Tema escuro';
+}
+
+function alterarTema() {
+    const novo = document.documentElement.dataset.tema === 'escuro' ? 'claro' : 'escuro';
+    aplicarTema(novo);
+    salvarJSON('tema', novo);
+}
+
+function restaurarPreferencia() {
+    const filtro = lerJSON('filtro', 'todos');
+    estado.filtroStatus = FILTROS_VALIDOS.includes(filtro) ? filtro : 'todos';
+    campoFiltro.value = estado.filtroStatus;
+
+    aplicarTema(lerJSON('tema', 'claro') === 'escuro' ? 'escuro' : 'claro');
+}
+
+function exportarAgenda() {
+    const lista = estado.agenda.map((a) => a.paraJSON());
+    textoExportacao.value = JSON.stringify(lista, null, 2);
+    document.getElementById('exportacao').hidden = false;
+    textoExportacao.focus();
+}
+
+async function copiarAgenda() {
+    try {
+        await navigator.clipboard.writeText(textoExportacao.value);
+        mostrarToast('Agenda copiada.');
+    } catch {
+        textoExportacao.select();
+        mostrarToast('Selecione o texto e copie com Ctrl+C.', 'info');
+    }
+}
+
+function baixarAgenda() {
+    const arquivo = new Blob([textoExportacao.value], {type: 'application/json'});
+    const url = URL.createObjectURL(arquivo);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'agenda.json';
+    link.click();
+    URL.revokeObjectURL(url);
+}
+
+async function carregarExemplo() {
+    if (estado.servicos.length === 0) {
+        mostrarToast('Aguarde o catálogo de serviços carregar.', 'info');
+        return;
+    }
+    if (estado.agenda.length > 0) {
+        mostrarToast('Limpe os dados antes de carregar o exemplo.', 'info');
+        return;
+    }
+
+    try {
+        estado.agenda = converterAgenda(await carregarAgendaExemplo());
+    } catch (erro) {
+        mostrarToast(erro.message, 'erro');
+        return;
+    }
+
+    estado.gerarProtocolo = criarGeradorProtocolo(maiorProtocolo(estado.agenda));
+    if (estado.agenda.length > 0) {
+        estado.dataAgenda = estado.agenda[0].data;
+        campoDataAgenda.value = estado.dataAgenda;
+    }
+    salvarAgenda();
+    atualizarTela();
+    mostrarToast(`${estado.agenda.length} agendamentos de exemplo carregados.`, 'info');
+}
+
+function restaurarBotaoLimpar() {
+    confirmandoLimpeza = false;
+    botaoLimpar.textContent = TEXTO_LIMPAR;
+}
+
+function limparMeusDados() {
+    if (!confirmandoLimpeza) {
+        confirmandoLimpeza = true;
+        botaoLimpar.textContent = 'Clique de novo para confirmar';
+        timerConfirmacao = setTimeout(restaurarBotaoLimpar, 4000);
+        return;
+    }
+
+    clearTimeout(timerConfirmacao);
+    restaurarBotaoLimpar();
+
+    const removidos = limparDados();
+    estado.agenda = [];
+    estado.gerarProtocolo = criarGeradorProtocolo(0);
+    estado.expandidos.clear();
+    estado.filtroStatus = 'todos';
+    campoFiltro.value = 'todos';
+    aplicarTema('claro');
+    document.getElementById('exportacao').hidden = true;
+    atualizarTela();
+    mostrarToast(`Dados da AgendaPet removidos (${removidos} itens).`);
+} 
 
 function aoEnviar(evento) {
     evento.preventDefault();
@@ -254,6 +470,7 @@ function aoEnviar(evento) {
 
     novo.protocolo = estado.gerarProtocolo();
     estado.agenda.push(novo);
+    salvarAgenda();
 
     formulario.reset();
     atualizarDomiciliar();
@@ -268,6 +485,7 @@ function aoEnviar(evento) {
     campoBusca.value = '';
     estado.filtroStatus = 'todos';
     campoFiltro.value - 'todos';
+    salvarJSON('filtro', 'todos');
 
     atualizarTela();
     mostrarToast(
@@ -299,6 +517,7 @@ campoBusca.addEventListener('input', () => {
 
 campoFiltro.addEventListener('change', () => {
     estado.filtroStatus = campoFiltro.value;
+    salvarJSON('filtro', estado.filtroStatus);
     atualizarTela();
 });
 
@@ -351,6 +570,15 @@ document.addEventListener('keydown', (evento) => {
     }
 });
 
-atualizarTela();
+botaoTema.addEventListener('click', alterarTema);
+document.getElementById('btn-exemplo').addEventListener('click', carregarExemplo);
+document.getElementById('btn-exportar').addEventListener('click', exportarAgenda);
+document.getElementById('btn-copiar').addEventListener('click', copiarAgenda);
+document.getElementById('btn-baixar').addEventListener('click', baixarAgenda);
+botaoLimpar.addEventListener('click', limparMeusDados);
+botaoLembretes.addEventListener('click', alternarLembretes);
 
+restaurarPreferencia();
+atualizarTela();
+iniciarLembretes();
 carregarCatalogo();

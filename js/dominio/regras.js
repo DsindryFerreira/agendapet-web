@@ -107,3 +107,22 @@ export function validarAgendamento(dados, servicoEscolhido) {
 export function temConflito(lista, novo) {
     return lista.some((existente) => novo.conflitaCom(existente));
 }
+
+export function horaAgora() {
+    const agora = new Date();
+    const horas = String(agora.getHours()).padStart(2, '0');
+    const minutos = String(agora.getMinutes()).padStart(2, '0');
+    return `${horas}:${minutos}`;
+}
+
+export function minutosAte(hora, horaAtual) {
+    return paraMinutos(hora) - paraMinutos(horaAtual);
+}
+
+export function textoFalta(minutos) {
+    if (minutos <= 0) return 'agora';
+    if (minutos < 60) return `em ${minutos} min`;
+    const horas = Math.floor(minutos / 60);
+    const resto = minutos % 60;
+    return resto === 0 ? `em ${horas} h` : `em ${horas} h ${resto} min`;
+}
