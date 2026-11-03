@@ -1,5 +1,7 @@
 import { carregarServicos, buscarCep, ErroApi, buscarFeriados, carregarAgendaExemplo } from './api.js';
-import { validarAgendamento, hojeISO, limparCep, formatarData, temConflito } from './dominio/regras.js';
+
+import { validarAgendamento, hojeISO, limparCep, formatarData, temConflito, horaAgora, minutosAte, textoFalta } from './dominio/regras.js';
+
 import {
     mostrarEstado,
     esconderEstado,
@@ -16,7 +18,12 @@ import {
     renderizarAgenda,
     renderizarFechamento,
     focarItem,
+    mostrarRelogio,
+    mostrarProximo,
+    mostrarLembrete,
+    esconderLembrete,
 } from './ui.js';
+
 import {
     Servico,
     STATUS,
@@ -24,6 +31,7 @@ import {
     criarGeradorProtocolo,
     maiorProtocolo,
 } from './dominio/agendamento.js';
+
 import {
     filtrarAgendamentos,
     porDia,
@@ -31,6 +39,8 @@ import {
     porBusca,
     ordenarPorHorario,
     calcularFechamento,
+    protocolosAtrasados,
+    proximoAtendimento,
 } from './dominio/fechamento.js';
 
 import { lerJSON, salvarJSON, limparDados } from './storage.js';
@@ -44,6 +54,9 @@ const estado = {
     busca: '',
     expandidos: new Set(),
     gerarProtocolo: criarGeradorProtocolo(0),
+    timerLembretes: null,
+    lembretesAtivos: true,
+    assinaturaAtrasados: '',
 };
 
 const avisoServicos = document.getElementById('servicos-status');
@@ -74,6 +87,11 @@ const FILTROS_VALIDOS = ['todos', STATUS.agendado, STATUS.concluido, STATUS.canc
 const TEXTO_LIMPAR = 'Limpar meus dados';
 let confirmandoLimpeza = false;
 let timerConfirmacao = null;
+
+const botaoLembretes = document.getElementById('btn-lembretes');
+const INTERVALO_MS = 30_000;
+const LIMITE_LEMBRETE_MIN = 15;
+const assinatura = (conjunto) => [...conjunto].sort().join(',');
 
 async function carregarCatalogo() {
     mostrarEstado(avisoServicos, 'carregando', 'Carregando serviços...');
@@ -209,12 +227,72 @@ function montarObjetoAgendamento(dados) {
 }
 
 function atualizarTela() {
+    const hoje = hojeISO();
+    const agora = horaAgora();
+    const atrasados = protocolosAtrasados(estado.agenda, hoje, agora);
+    estado.assinaturaAtrasados = assinatura(atrasados);
+
     const doDia = filtrarAgendamentos(estado.agenda, porDia(estado.dataAgenda));
     const visiveis = ordenarPorHorario(
         filtrarAgendamentos(doDia, porStatus(estado.filtroStatus), porBusca(estado.busca))
     );
-    renderizarAgenda(visiveis, estado.expandidos, doDia.length);
+    renderizarAgenda(visiveis, estado.expandidos, doDia.length, atrasados);
     renderizarFechamento(calcularFechamento(estado.agenda, estado.dataAgenda));
+
+    if (estado.lembretesAtivos) atualizarProximo(hoje, agora);
+}
+
+function atualizarProximo(hoje, agora) {
+    const proximo = proximoAtendimento(estado.agenda, hoje, agora);
+
+    if (!proximo) {
+        mostrarProximo('Proximo atendimento de hoje: nenhum pendente');
+        esconderLembrete();
+        return;
+    }
+
+    const falta = minutosAte(proximo.hora, agora);
+    const descricao = `${proximo.pet} (${proximo.servico.nome}) às ${proximo.hora}, ${textoFalta(falta)}`;
+    mostrarProximo(`Proximo atendimento de hoje: ${descricao}`);
+
+    if (falta <= LIMITE_LEMBRETE_MIN) {
+        mostrarLembrete(`Lembrete: ${descricao}.`);
+    } else {
+        esconderLembrete();
+    }
+}
+
+function atualizarRelogio() {
+    const hoje = hojeISO();
+    const agora = horaAgora();
+    mostrarRelogio(agora);
+    atualizarProximo(hoje, agora);
+
+    const atrasados = protocolosAtrasados(estado.agenda, hoje, agora);
+    if (assinatura(atrasados) !== estado.assinaturaAtrasados) atualizarTela();
+}
+
+function iniciarLembretes() {
+    clearInterval(estado.timerLembretes);
+    estado.timerLembretes = setInterval(atualizarRelogio, INTERVALO_MS);
+    atualizarRelogio();
+}
+
+function alternarLembretes() {
+    estado.lembretesAtivos = !estado.lembretesAtivos;
+
+    if (estado.lembretesAtivos) {
+        iniciarLembretes();
+        mostrarToast('Lembretes retomados.', 'info');
+    } else {
+        clearInterval(estado.timerLembretes);
+        estado.timerLembretes = null;
+        esconderLembrete();
+        mostrarToast('Lembretes pausados.', 'info');
+    }
+
+    botaoLembretes.setAttribute('aria-pressed', String(estado.lembretesAtivos));
+    botaoLembretes.textContent = estado.lembretesAtivos ? 'Pausar lembretes' : 'Retomar lembretes';
 }
 
 function mudarStatus(protocolo, novoStatus) {
@@ -498,9 +576,9 @@ document.getElementById('btn-exportar').addEventListener('click', exportarAgenda
 document.getElementById('btn-copiar').addEventListener('click', copiarAgenda);
 document.getElementById('btn-baixar').addEventListener('click', baixarAgenda);
 botaoLimpar.addEventListener('click', limparMeusDados);
+botaoLembretes.addEventListener('click', alternarLembretes);
 
 restaurarPreferencia();
-
 atualizarTela();
-
+iniciarLembretes();
 carregarCatalogo();
