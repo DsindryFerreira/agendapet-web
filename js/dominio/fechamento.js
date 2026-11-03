@@ -62,3 +62,20 @@ export function calcularFechamento(lista, data) {
         temDomiciliar: doDia.some((a) => a.tipo === 'Domiciliar'),
     };
 }
+
+export function estaAtrasado(agendamento, dataHoje, horaAtual) {
+    if (agendamento.status !== STATUS.agendado) return false;
+    return (
+        agendamento.data < dataHoje ||
+        (agendamento.data === dataHoje && agendamento.hora < horaAtual)
+    );
+}
+
+export function protocolosAtrasados(lista, dataHoje, horaAtual) {
+    return new Set(
+        lista
+        .filter((agendamento) => estaAtrasado(agendamento, dataHoje, horaAtual))
+        .map((agendamento) => agendamento.protocolo)
+    );
+}
+
