@@ -1,4 +1,5 @@
 import { STATUS, normalizar } from './agendamento.js';
+import { formatarData, formatarMoeda } from './regras.js';
 
 export function filtrarAgendamentos(lista, ...criterios) {
     return lista.filter((item) => criterios.every((criterio) => criterio(item)));
@@ -77,5 +78,29 @@ export function protocolosAtrasados(lista, dataHoje, horaAtual) {
         .filter((agendamento) => estaAtrasado(agendamento, dataHoje, horaAtual))
         .map((agendamento) => agendamento.protocolo)
     );
+}
+
+export function montarLinhasRelatorio(fechamento) {
+    const situacao = fechamento.encerrado ? 'dia encerrado' : 'dia em andamento';
+    const linhas = [
+        `FECHAMENTO DO DIA ${formatarData(fechamento.data)} (${situacao})`,
+        '------------------------------------------',
+        `Atendimentos: ${fechamento.total}`,
+        `Concluídos:   ${fechamento.concluidos}`,
+        `Agendados:    ${fechamento.agendados}`,
+        `Cancelados:   ${fechamento.cancelados}`,
+        `Faturamento:  ${formatarMoeda(fechamento.faturamento)}`,
+        `A receber:    ${formatarMoeda(fechamento.aReceber)}`,
+        '',
+        'Por serviço:',
+    ];
+
+    if (fechamento.porServico.length === 0) {
+        linhas.push(' Nenhum atendimento ativo neste dia.');
+    }
+    for (const s of fechamento.porServico) {
+        linhas.push(` ${s.servico}: ${s.quantidade} atendimento(s), ${formatarMoeda(s.faturado)}`);
+    }
+    return linhas;
 }
 
