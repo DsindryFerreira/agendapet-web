@@ -190,12 +190,13 @@ function criarDetalhes(agendamento) {
     return lista;
 }
 
-function criarItemAgenda(agendamento, expandido) {
-    const classeStatus = CLASSE_STATUS[agendamento.status];
+function criarItemAgenda(agendamento, expandido, atrasado) {
+    const classeStatus = atrasado ? 'atrasado' :
+    CLASSE_STATUS[agendamento.status];
 
     const item = criarElemento('li', 'item');
     item.dataset.protocolo = agendamento.protocolo;
-    if (agendamento.status !== STATUS.agendado) item.classList.add(`item--${classeStatus}`);
+    if (agendamento.status !== STATUS.agendado || atrasado) item.classList.add(`item--${classeStatus}`);
     if (expandido) item.classList.add('item--expandido');
 
     const alternar = criarElemento('button', 'item__toggle');
@@ -210,7 +211,7 @@ function criarItemAgenda(agendamento, expandido) {
 
     const selos = criarElemento('div', 'item__selos');
     selos.append(
-        criarElemento('span', `selo selo--${classeStatus}`, agendamento.status),
+        criarElemento('span', `selo selo--${classeStatus}`, atrasado ? 'atrasado' : agendamento.status),
         criarElemento('span', 'item__valor', formatarMoeda(agendamento.calcularValor()))
     );
 
@@ -229,14 +230,20 @@ function criarItemAgenda(agendamento, expandido) {
     return item;
 }
 
-export function renderizarAgenda(lista, expandidos, totalNoDia) {
+export function renderizarAgenda(lista, expandidos, totalNoDia, atrasados) {
     const ul = document.getElementById('lista-agenda');
     const vazio = document.getElementById('agenda-vazio');
     const contador = document.getElementById('contador');
 
     ul.replaceChildren();
     for (const agendamento of lista) {
-        ul.append(criarItemAgenda(agendamento, expandidos.has(agendamento.protocolo)));
+        ul.append(
+            criarItemAgenda(
+                agendamento, 
+                expandidos.has(agendamento.protocolo),
+                atrasados.has(agendamento.protocolo)
+            )
+        );
     }
 
     contador.textContent = lista.length === 1 ? '1 agendamento' : `${lista.length} agendamentos`;
@@ -300,4 +307,24 @@ export function renderizarFechamento(fechamento) {
 export function focarItem(protocolo) {
     const botao = document.querySelector(`.item[data-protocolo="${protocolo}"] .item__toggle`);
     if (botao) botao.focus();
+}
+
+export function mostrarRelogio(texto) {
+    document.getElementById('relogio').textContent = texto;
+}
+
+export function mostrarProximo(texto) {
+    document.getElementById('proximo').textContent = texto;
+}
+
+export function mostrarLembrete(texto) {
+    const lembrete = document.getElementById('lembrete');
+    lembrete.textContent = texto;
+    lembrete.hidden = false;
+}
+
+export function esconderLembrete() {
+    const lembrete = document.getElementById('lembrete');
+    lembrete.hidden = true;
+    lembrete.textContent = '';
 }
