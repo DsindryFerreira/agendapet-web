@@ -45,7 +45,7 @@ export function calcularFechamento(lista, data) {
             porServico[id] = { servico: agendamento.servico.nome, quantidade: 0, faturado: 0};
         }
         porServico[id].quantidade += 1;
-        if (agendamento.status !== STATUS.cancelado) {
+        if (agendamento.status === STATUS.concluido) {
             porServico[id].faturado += agendamento.calcularValor();
         }
     }
